@@ -93,7 +93,7 @@ def main():
         epoch_id = None
         eval_output_dir = eval_output_dir / "eval_all_default"
     else: # 测试单个模型
-        
+        pass
         
     
     
