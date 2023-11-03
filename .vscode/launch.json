@@ -1,0 +1,34 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            // "args":[ // for train
+            //     "./projects/configs/bevformer/bevformer_tiny.py",
+            //     "--deterministic"
+            // ]
+            // "args":[
+            //     "./bev/configs/bevformer/bevformer_base.py",
+            //     "./ckpts/bevformer_r101_dcn_24ep.pth",
+            //     "--deterministic",
+                // "--eval","bbox"
+            // ]
+
+            "args":[
+                "--cfg_file","./tools/cfgs/5_percent_no_bev.yaml",
+                "--batch_size","2",
+                "--extra_tag","my_1st_exp",
+                "--ckpt","./output/5_percent_bev_base/my_1st_exp/ckpt/checkpoint_epoch_30.pth"
+            ]
+
+        }
+    ]
+}

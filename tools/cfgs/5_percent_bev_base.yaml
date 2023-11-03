@@ -1,0 +1,97 @@
+DATA_CONFIG:
+  DATASET: NuscenesDataset
+  OBJECT_TYPE: &object_type ['TYPE_VEHICLE', 'TYPE_PEDESTRIAN']
+  DATA_ROOT: 'data/processed_data'
+  SPLIT_DIR: {
+        'train': 'train', 
+        'test': 'val'
+  }
+  SAMPLE_INTERVAL: {
+      'train': 20, 
+      'test': 1
+  }
+
+  MAX_AGENTS_EACH_SCENE: 16
+
+  NUM_POINTS_EACH_POLYLINE: 10
+  POINT_SAMPLED_INTERVAL: 1
+
+  NUM_OF_SRC_POLYLINES: 512
+  CENTER_OFFSET_OF_MAP: &center_offset [10.0, 0]
+
+  GENERATE_ENPOINT: True
+  ENDPOINTS_FILE: &endpoint_file 'data/cluster_64_center_dict.pkl'
+
+  USE_BEV: &use_bev True
+  BEV_CONFIG_PATH: &bev_config_path 'bev/configs/bevformer/bevformer_base.py'
+
+MODEL:
+  USE_BEV: *use_bev
+  BEV_CONFIG_PATH: *bev_config_path
+  BEV_CHECKPOINT_PATH: 'bev/ckpts/bevformer_r101_dcn_24ep.pth'
+  
+  CONTEXT_ENCODER:
+      NAME: MTREncoder
+
+      NUM_OF_ATTN_NEIGHBORS: 16
+      NUM_INPUT_ATTR_AGENT: 21
+      NUM_INPUT_ATTR_MAP: 9
+      
+      NUM_CHANNEL_IN_MLP_AGENT: 256
+      NUM_CHANNEL_IN_MLP_MAP: 64
+      NUM_LAYER_IN_MLP_AGENT: 3
+      NUM_LAYER_IN_MLP_MAP: 5
+      NUM_LAYER_IN_PRE_MLP_MAP: 3
+
+      D_MODEL: 256
+      NUM_ATTN_LAYERS: 6
+      NUM_ATTN_HEAD: 8 
+      DROPOUT_OF_ATTN: 0.1 
+
+      USE_LOCAL_ATTN: True
+
+      USE_BEV: *use_bev
+
+  MOTION_DECODER:
+      NAME: MTRDecoder
+
+      OBJECT_TYPE: *object_type 
+      CENTER_OFFSET_OF_MAP: *center_offset
+
+      NUM_FUTURE_FRAMES: 12
+      NUM_MOTION_MODES: 6
+
+      INTENTION_POINTS_FILE: *endpoint_file
+
+      D_MODEL: 512
+      NUM_DECODER_LAYERS: 6 
+      NUM_ATTN_HEAD: 8
+      MAP_D_MODEL: 256
+      DROPOUT_OF_ATTN: 0.1 
+
+      NUM_BASE_MAP_POLYLINES: 256
+      NUM_WAYPOINT_MAP_POLYLINES: 128
+
+      LOSS_WEIGHTS: {
+          'cls': 1.0, 
+          'reg': 1.0, 
+          'vel': 0.5
+      }
+
+      NMS_DIST_THRESH: 2.5
+
+
+OPTIMIZATION:
+  BATCH_SIZE_PER_GPU: 10
+  NUM_EPOCHS: 30
+
+  OPTIMIZER: AdamW
+  LR: 0.0001
+  WEIGHT_DECAY: 0.01
+
+  SCHEDULER: lambdaLR
+  DECAY_STEP_LIST: [22, 24, 26, 28]
+  LR_DECAY: 0.5
+  LR_CLIP: 0.000001
+
+  GRAD_NORM_CLIP: 1000.0

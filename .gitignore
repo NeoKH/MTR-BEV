@@ -1,0 +1,19 @@
+.DS_Store
+
+# Editor directories and files
+.idea
+# .vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+__pycache__/
+
+output/
+MotionTransformer.egg-info/
+data/
+ckpts/
+build/
+
+
