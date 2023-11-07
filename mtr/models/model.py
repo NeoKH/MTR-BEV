@@ -33,6 +33,7 @@ class MotionTransformer(nn.Module):
             self.bev_w = self.bev_cfg.bev_w_
             self.resolution = 102.4 / self.bev_h
             self.fuse_conv_bn = self.bev_cfg.fuse_conv_bn
+            self.img_size = torch.tensor([self.bev_h,self.bev_w]).float().cuda()
             # self.init_register()
             self.build_bevformer()
         
@@ -82,30 +83,36 @@ class MotionTransformer(nn.Module):
         distance_to_ego = input_dict["distance_to_ego"].cuda()
         angle_to_ego = input_dict["angle_to_ego"].cuda()
         
-        num_objects = center_objects.shape[0]
+        num_channels = features.shape[-1]
         visibilities = center_objects[:,7]
         
         bev_list = []
-        for batch_id in range(features.shape[0]):
-            N = batch_dict['batch_sample_count'][batch_id]
-            bev_feature = features[batch_id][None].repeat(N,1,1).view(N,self.bev_w,self.bev_h,-1).permute(0,3,1,2)
+        for batch_idx in range(len(batch_dict['batch_sample_count'])):
+            N = batch_dict['batch_sample_count'][batch_idx]
+            bev_feature = features[batch_idx][None].repeat(N,1,1).view(N,self.bev_h,self.bev_w,-1).permute(0,3,1,2)
+            bev_feature = bev_feature.view(-1,self.bev_h,self.bev_w)
+            # 创建一个标准化的网格坐标
+            grid_y, grid_x = torch.meshgrid([torch.linspace(-1, 1, 200), torch.linspace(-1, 1, 200)])
+            grid = torch.stack((grid_x, grid_y), dim=2).unsqueeze(0)  # 添加一个维度以匹配img_feature
             
+            
+            angle_radians = angle_to_ego * (3.1415926 / 180)
+            # 旋转 bev feature
+            new_feature = TF.rotate(bev_feature[id],float(angle_to_ego[id]),expand=True).view(N,-1,self.bev_h,self.bev_w)
+            # 此时的 bev feature 仍然以ego为中心,但是方向变成了 agent的前进方向 为正方向.
+            return_feature = torch.zeros((N,num_channels,10,10)).float().cuda()
             for id in range(N):
                 if visibilities[id] <= 0.3:
                     # 被遮挡的 Agent, 直接返回0向量
-                    bev_list.append(torch.zeros(256,10,10).cuda())
+                    # bev_list.append(torch.zeros(256,10,10).cuda())
                     continue
                 # 旋转 bev feature
-                new_feature = TF.rotate(bev_feature[id],float(angle_to_ego[id]),expand=True)
-                # 此时的 bev feature 仍然以ego为中心,但是方向变成了 agent的前进方向 为正方向.
-                wh = torch.tensor(new_feature.shape[1:]).float().cuda()
                 xy = distance_to_ego[id]
-                if torch.sum(torch.abs(xy)/self.resolution < wh/2+5) < 2: # 超出范围的 Agent, 直接返回0向量
+                if torch.sum(torch.abs(xy)/self.resolution < self.img_size/2+5) < 2: # 超出范围的 Agent, 直接返回0向量
                     bev_list.append(torch.zeros(256,10,10).cuda())
                     continue
-                
                 # Crop出需要的区域
-                left,top = xy/self.resolution + wh/2 - 5
+                left,top = xy/self.resolution + self.img_size/2 - 5
                 crop_feature = TF.crop(new_feature,int(left),int(top),10,10)
                 bev_list.append(crop_feature)
         
@@ -167,7 +174,9 @@ class MotionTransformer(nn.Module):
         loc_type = torch.device('cpu') if to_cpu else None
         checkpoint = torch.load(filename, map_location=loc_type)
         model_state_disk = checkpoint['model_state']
-
+        # print(model_state_disk.keys())
+        # print(model_state_disk['bev_former.bev_head.transformer.can_bus_mlp.2.weight'].shape) # torch.Size([256, 128])
+        # print(model_state_disk['bev_former.bev_head.transformer.can_bus_mlp.2.weight'][0,:10]) # torch.Size([256, 128])
         version = checkpoint.get("version", None)
         if version is not None:
             logger.info('==> Checkpoint trained from version: %s' % version)
@@ -187,9 +196,12 @@ class MotionTransformer(nn.Module):
         model_state_disk = model_state_disk_filter
 
         missing_keys, unexpected_keys = self.load_state_dict(model_state_disk, strict=False)
-
-        logger.info(f'Missing keys: {missing_keys}')
-        logger.info(f'The number of missing keys: {len(missing_keys)}')
+        new_missing_keys = []
+        for missing_key in missing_keys:
+            if "bev_former" in missing_key:
+                new_missing_keys.append(missing_key)
+        logger.info(f'Missing keys: {new_missing_keys}')
+        logger.info(f'The number of missing keys: {len(new_missing_keys)}')
         logger.info(f'The number of unexpected keys: {len(unexpected_keys)}')
         logger.info('==> Done (total keys %d)' % (len(model_state)))
 

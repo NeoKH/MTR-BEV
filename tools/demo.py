@@ -59,7 +59,8 @@ def parse_config():
 
 
 def eval_one(model,ckpt_path,loader,logger,ckpt_name,dist_test):
-    it, epoch = model.load_params_from_file(filename=ckpt_path, logger=logger, to_cpu=dist_test)
+    if ckpt_path!=None:
+        it, epoch = model.load_params_from_file(filename=ckpt_path, logger=logger, to_cpu=dist_test)
     logger.info(f'====================== LOAD MODEL {ckpt_name} for EVALUATION ======================')
     model.cuda()
     model.eval()

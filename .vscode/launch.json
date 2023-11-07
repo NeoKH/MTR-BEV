@@ -11,22 +11,22 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            // "args":[ // for train
+            // "args":[ // for bevformer train
             //     "./projects/configs/bevformer/bevformer_tiny.py",
             //     "--deterministic"
             // ]
-            // "args":[
+            // "args":[ //for bevformer test
             //     "./bev/configs/bevformer/bevformer_base.py",
             //     "./ckpts/bevformer_r101_dcn_24ep.pth",
             //     "--deterministic",
-                // "--eval","bbox"
+            //     "--eval","bbox"
             // ]
 
-            "args":[
-                "--cfg_file","./tools/cfgs/5_percent_no_bev.yaml",
+            "args":[ //
+                "--cfg_file","./tools/cfgs/5_percent_bev_base.yaml",
                 "--batch_size","2",
-                "--extra_tag","my_1st_exp",
-                "--ckpt","./output/5_percent_bev_base/my_1st_exp/ckpt/checkpoint_epoch_30.pth"
+                "--extra_tag","debug",
+                // "--ckpt","./output/5_percent_bev_base/my_1st_exp/ckpt/checkpoint_epoch_30.pth"
             ]
 
         }

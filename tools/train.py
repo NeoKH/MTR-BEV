@@ -31,9 +31,9 @@ def parse_config():
     parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
     parser.add_argument('--without_sync_bn', action='store_true', default=False, help='whether to use sync bn')
     parser.add_argument('--fix_random_seed', action='store_true', default=False, help='')
-    parser.add_argument('--ckpt_save_interval', type=int, default=2, help='number of training epochs')
+    parser.add_argument('--ckpt_save_interval', type=int, default=1, help='number of training epochs')
     parser.add_argument('--local_rank', type=int, default=None, help='local rank for distributed training')
-    parser.add_argument('--max_ckpt_save_num', type=int, default=5, help='max number of saved checkpoint')
+    parser.add_argument('--max_ckpt_save_num', type=int, default=20, help='max number of saved checkpoint')
     parser.add_argument('--merge_all_iters_to_one_epoch', action='store_true', default=False, help='')
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
@@ -52,7 +52,6 @@ def parse_config():
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg.TAG = Path(args.cfg_file).stem
-    cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
 
     if args.set_cfgs is not None:
         cfg_from_list(args.set_cfgs, cfg)
@@ -124,9 +123,8 @@ def main():
     if args.fix_random_seed:
         common_utils.set_random_seed(666)
 
-    output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
+    output_dir = cfg.ROOT_DIR / 'output' / cfg.TAG / args.extra_tag
     ckpt_dir = output_dir / 'ckpt'
-    output_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     log_file = output_dir / ('log_train_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
@@ -158,6 +156,7 @@ def main():
     )
     
     model = model_utils.MotionTransformer(config=cfg.MODEL)
+    
     if not args.without_sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
@@ -170,7 +169,12 @@ def main():
 
     if args.pretrained_model is not None:
         model.load_params_from_file(filename=args.pretrained_model, to_cpu=dist_train, logger=logger)
-
+        from train_utils.train_utils import save_checkpoint,checkpoint_state
+        save_checkpoint(
+            checkpoint_state(model, optimizer, 0, 100), filename=ckpt_dir / 'latest_model',
+        )
+    
+    
     if args.ckpt is not None:
         it, start_epoch = model.load_params_with_optimizer(args.ckpt, to_cpu=dist_train, optimizer=optimizer,
                                                         logger=logger)
@@ -217,8 +221,8 @@ def main():
     eval_output_dir.mkdir(parents=True, exist_ok=True)
 
     # -----------------------start training---------------------------
-    logger.info('**********************Start training %s/%s(%s)**********************'
-                % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    logger.info('**********************Start training %s(%s)**********************'
+                % (cfg.TAG, args.extra_tag))
     
     train_model(
         model,
@@ -243,34 +247,34 @@ def main():
         ckpt_save_time_interval=args.ckpt_save_time_interval,
         accumulation_steps = args.accumulation_steps
     )
-    return
-    logger.info('**********************End training %s/%s(%s)**********************\n\n\n'
-                % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    logger.info('**********************End training %s(%s)**********************\n\n\n'
+                % (cfg.TAG, args.extra_tag))
 
 
-    logger.info('**********************Start evaluation %s/%s(%s)**********************' %
-                (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    # logger.info('**********************Start evaluation %s(%s)**********************' %
+    #             (cfg.TAG, args.extra_tag))
 
-    eval_output_dir = output_dir / 'eval' / 'eval_with_train'
-    eval_output_dir.mkdir(parents=True, exist_ok=True)
-    args.start_epoch = max(args.epochs - 0, 0)  # Only evaluate the last 10 epochs
-    cfg.DATA_CONFIG.SAMPLE_INTERVAL.val = 1
+    # eval_output_dir = output_dir / 'eval' / 'eval_with_train'
+    # eval_output_dir.mkdir(parents=True, exist_ok=True)
+    # args.start_epoch = max(args.epochs - 0, 0)  # Only evaluate the last 10 epochs
+    # cfg.DATA_CONFIG.SAMPLE_INTERVAL.val = 1
 
-    test_set, test_loader, sampler = build_dataloader(
-        dataset_cfg=cfg.DATA_CONFIG,
-        batch_size=args.batch_size,
-        dist=dist_train, workers=args.workers, logger=logger, training=False
-    )
+    # test_set, test_loader, sampler = build_dataloader(
+    #     dataset_cfg=cfg.DATA_CONFIG,
+    #     batch_size=args.batch_size,
+    #     dist=dist_train, workers=args.workers, logger=logger, training=False
+    # )
 
-    from test import repeat_eval_ckpt, eval_single_ckpt
-    repeat_eval_ckpt(
-        model.module if dist_train else model,
-        test_loader, args, eval_output_dir, logger, ckpt_dir,
-        dist_test=dist_train
-    )
+    # from test import eval_one
+    # eval_one(
+    #     model.module if dist_train else model,
+    #     None,
+    #     test_loader, logger, cfg.TAG,
+    #     dist_test=dist_train
+    # )
 
-    logger.info('**********************End evaluation %s/%s(%s)**********************' %
-                (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    # logger.info('**********************End evaluation %s(%s)**********************' %
+    #             (cfg.TAG, args.extra_tag))
 
 
 if __name__ == '__main__':

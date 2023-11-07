@@ -163,7 +163,9 @@ def train_model(model, optimizer, train_loader, optim_cfg,
             
             # save trained model
             trained_epoch = cur_epoch + 1
-            if (trained_epoch % ckpt_save_interval == 0 or trained_epoch in [1, 2, 4] or trained_epoch > total_epochs - 10) and rank == 0:
+            # if (trained_epoch % ckpt_save_interval == 0 or trained_epoch in [1, 2, 4] or trained_epoch > total_epochs - 10) and rank == 0:
+            # if (trained_epoch % ckpt_save_interval == 0) and trained_epoch in [2,6,10,14,18,22,24,26,28,30] and rank == 0:
+            if (trained_epoch % ckpt_save_interval == 0) and trained_epoch in [1,2,3] and rank == 0:
 
                 ckpt_list = glob.glob(str(ckpt_save_dir / 'checkpoint_epoch_*.pth'))
                 ckpt_list.sort(key=os.path.getmtime)
@@ -177,7 +179,7 @@ def train_model(model, optimizer, train_loader, optim_cfg,
                     checkpoint_state(model, optimizer, trained_epoch, accumulated_iter), filename=ckpt_name,
                 )
 
-            # eval the model
+                # eval the model
             # if test_loader is not None and (trained_epoch % ckpt_save_interval == 0 or trained_epoch in [1, 2, 4] or trained_epoch > total_epochs - 10):
             #     from eval_utils.eval_utils import eval_one_epoch
 
@@ -241,7 +243,13 @@ def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):
             model_state = model.state_dict()
     else:
         model_state = None
-
+    from collections import OrderedDict
+    new_model_state = OrderedDict()
+    for key in model_state.keys():
+        if 'bev_former' in key:
+            continue
+        new_model_state[key] = model_state[key]
+    model_state = new_model_state
     try:
         import mtr
         version = 'mtr+' + mtr.__version__
