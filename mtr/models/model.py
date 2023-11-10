@@ -90,12 +90,23 @@ class MotionTransformer(nn.Module):
         for batch_idx in range(len(batch_dict['batch_sample_count'])):
             N = batch_dict['batch_sample_count'][batch_idx]
             bev_feature = features[batch_idx][None].repeat(N,1,1).view(N,self.bev_h,self.bev_w,-1).permute(0,3,1,2)
-            bev_feature = bev_feature.view(-1,self.bev_h,self.bev_w)
+            bev_feature = bev_feature.view(-1,self.bev_h,self.bev_w) # （N，256,200,200）
             # 创建一个标准化的网格坐标
-            grid_y, grid_x = torch.meshgrid([torch.linspace(-1, 1, 200), torch.linspace(-1, 1, 200)])
+            grid_y, grid_x = torch.meshgrid([torch.linspace(-1, 1, self.bev_h), torch.linspace(-1, 1, self.bev_w)])
             grid = torch.stack((grid_x, grid_y), dim=2).unsqueeze(0)  # 添加一个维度以匹配img_feature
-            
-            
+            # 计算特征图中心
+            center_x, center_y = 0.5 * (self.bev_h - 1), 0.5 * (self.bev_w - 1)  # 特征图的中心坐标
+            # 将grid调整为特征图中心为原点的坐标系
+            grid[..., 0] = grid[..., 0] - center_x
+            grid[..., 1] = grid[..., 1] - center_y
+            # 将grid复制为与img_feature相同的批次数
+            grid = grid.expand(N, *grid.size()[1:])
+            # 逐层旋转特征
+            rotated_features = []
+            for i in range(img_feature.size(1)):  # 遍历每个特征层
+
+
+
             angle_radians = angle_to_ego * (3.1415926 / 180)
             # 旋转 bev feature
             new_feature = TF.rotate(bev_feature[id],float(angle_to_ego[id]),expand=True).view(N,-1,self.bev_h,self.bev_w)
